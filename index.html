@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="UTF-8">
 <title>Warehouse Inventory</title>
 
-<!-- Libreria scanner stabile -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<!-- Libreria scanner -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
 <style>
 
@@ -27,116 +28,48 @@ margin:auto;
 margin-top:10px;
 }
 
-button,input,select{
+button,input{
 padding:10px;
 margin:5px;
 font-size:16px;
 }
 
-table{
-margin:auto;
-margin-top:20px;
-border-collapse:collapse;
-width:95%;
-}
-
-th,td{
-border:1px solid #ccc;
-padding:6px;
-}
-
-.low{
-background:#ffe0b2;
-}
-
-.critical{
-background:#ffb3b3;
-}
-
 </style>
+
 </head>
 
 <body>
 
-<h1>📦 Warehouse Inventory</h1>
-
-<input id="user" placeholder="Operatore">
-
-<br>
-
-<select id="mode">
-<option value="entrata">Entrata</option>
-<option value="uscita">Uscita</option>
-<option value="inventario">Inventario</option>
-</select>
-
-<br>
-
-<button onclick="startScanner()">📷 Scansiona</button>
-
-<div id="reader"></div>
-
-<br>
-
-<input id="scaffold" placeholder="Scaffale">
+<h1>Warehouse Scanner</h1>
 
 <input id="product" placeholder="Codice prodotto">
 
-<input id="productName" placeholder="Nome prodotto">
-
-<input id="qty" type="number" value="1">
-
 <br>
 
-<button onclick="saveMove()">💾 Registra Movimento</button>
+<button id="scanBtn">Avvia Scanner</button>
 
-<h2>Registro Movimenti</h2>
-
-<table id="table">
-
-<tr>
-<th>Data</th>
-<th>Operatore</th>
-<th>Codice</th>
-<th>Nome</th>
-<th>Scaffale</th>
-<th>Quantità</th>
-<th>Tipo</th>
-<th>Stock</th>
-</tr>
-
-</table>
+<div id="reader"></div>
 
 <script>
 
 let scanner;
-let db;
 
-/* DATABASE */
+/* Aspetta che la pagina sia caricata */
+window.addEventListener("load", function(){
 
-let request = indexedDB.open("warehouseDB",1);
+document.getElementById("scanBtn").addEventListener("click", startScanner);
 
-request.onupgradeneeded = e=>{
-
-db = e.target.result;
-
-db.createObjectStore("prodotti",{keyPath:"codice"});
-
-db.createObjectStore("movimenti",{keyPath:"id",autoIncrement:true});
-
-};
-
-request.onsuccess = e=>{
-
-db = e.target.result;
-
-updateTable();
-
-};
-
-/* SCANNER */
+});
 
 async function startScanner(){
+
+if(typeof Html5Qrcode === "undefined"){
+
+alert("Errore: libreria scanner non caricata");
+
+return;
+
+}
 
 try{
 
@@ -150,192 +83,38 @@ return;
 
 }
 
-const cameraId = cameras[0].id;
-
 scanner = new Html5Qrcode("reader");
 
 scanner.start(
-cameraId,
+
+cameras[0].id,
+
 {
 fps:10,
 qrbox:200
 },
+
 (decodedText)=>{
 
 document.getElementById("product").value = decodedText;
 
-loadProductName(decodedText);
+scanner.stop();
 
 navigator.vibrate?.(100);
 
-scanner.stop();
-
 },
+
 (err)=>{}
 
 );
 
 }
+
 catch(e){
 
 alert("Errore fotocamera: " + e);
 
 }
-
-}
-
-/* CARICA NOME PRODOTTO */
-
-function loadProductName(code){
-
-let tx = db.transaction("prodotti","readonly");
-
-let store = tx.objectStore("prodotti");
-
-let req = store.get(code);
-
-req.onsuccess = ()=>{
-
-if(req.result){
-
-document.getElementById("productName").value = req.result.nome || "";
-
-}
-
-};
-
-}
-
-/* SALVA MOVIMENTO */
-
-function saveMove(){
-
-let codice = document.getElementById("product").value.trim();
-
-let nome = document.getElementById("productName").value.trim();
-
-let qty = parseInt(document.getElementById("qty").value);
-
-let scaffale = document.getElementById("scaffold").value;
-
-let mode = document.getElementById("mode").value;
-
-let user = document.getElementById("user").value;
-
-if(!codice || !user){
-
-alert("Inserisci codice e operatore");
-
-return;
-
-}
-
-let tx = db.transaction(["prodotti","movimenti"],"readwrite");
-
-let store = tx.objectStore("prodotti");
-
-let log = tx.objectStore("movimenti");
-
-let req = store.get(codice);
-
-req.onsuccess = ()=>{
-
-let data = req.result || {codice:codice,stock:0,nome:nome};
-
-data.nome = nome;
-
-if(mode=="entrata") data.stock += qty;
-
-if(mode=="uscita") data.stock = Math.max(0,data.stock-qty);
-
-if(mode=="inventario") data.stock = qty;
-
-store.put(data);
-
-/* ALERT STOCK */
-
-if(data.stock < 10){
-
-alert("🚨 Stock critico (<10)");
-
-}
-
-else if(data.stock < 15){
-
-alert("⚠️ Stock basso (<15)");
-
-}
-
-log.add({
-
-data:new Date().toLocaleString(),
-
-user:user,
-
-codice:codice,
-
-nome:nome,
-
-scaffale:scaffale,
-
-qty:qty,
-
-tipo:mode,
-
-stock:data.stock
-
-});
-
-updateTable();
-
-};
-
-}
-
-/* AGGIORNA TABELLA */
-
-function updateTable(){
-
-let tx = db.transaction("movimenti","readonly");
-
-let store = tx.objectStore("movimenti");
-
-store.getAll().onsuccess = e=>{
-
-let table = document.getElementById("table");
-
-table.innerHTML = `
-<tr>
-<th>Data</th>
-<th>Operatore</th>
-<th>Codice</th>
-<th>Nome</th>
-<th>Scaffale</th>
-<th>Quantità</th>
-<th>Tipo</th>
-<th>Stock</th>
-</tr>
-`;
-
-e.target.result.reverse().forEach(r=>{
-
-let tr = table.insertRow();
-
-if(r.stock < 10) tr.className="critical";
-else if(r.stock < 15) tr.className="low";
-
-tr.insertCell(0).innerText = r.data;
-tr.insertCell(1).innerText = r.user;
-tr.insertCell(2).innerText = r.codice;
-tr.insertCell(3).innerText = r.nome;
-tr.insertCell(4).innerText = r.scaffale;
-tr.insertCell(5).innerText = r.qty;
-tr.insertCell(6).innerText = r.tipo;
-tr.insertCell(7).innerText = r.stock;
-
-});
-
-};
 
 }
 
