@@ -3,10 +3,9 @@
 <head>
 
 <meta charset="UTF-8">
-<title>Warehouse Inventory</title>
+<title>Warehouse Scanner PRO</title>
 
-<!-- Libreria scanner -->
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@latest"></script>
 
 <style>
 
@@ -22,15 +21,15 @@ color:white;
 padding:10px;
 }
 
-#reader{
+video{
 width:300px;
-margin:auto;
+border:3px solid #444;
 margin-top:10px;
 }
 
 button,input{
 padding:10px;
-margin:5px;
+margin:6px;
 font-size:16px;
 }
 
@@ -40,42 +39,34 @@ font-size:16px;
 
 <body>
 
-<h1>Warehouse Scanner</h1>
+<h1>📦 Warehouse Scanner PRO</h1>
 
 <input id="product" placeholder="Codice prodotto">
 
 <br>
 
-<button id="scanBtn">Avvia Scanner</button>
+<button onclick="startScanner()">📷 Avvia Scanner</button>
 
-<div id="reader"></div>
+<button onclick="stopScanner()">⛔ Stop</button>
+
+<br>
+
+<video id="video"></video>
 
 <script>
 
-let scanner;
-
-/* Aspetta che la pagina sia caricata */
-window.addEventListener("load", function(){
-
-document.getElementById("scanBtn").addEventListener("click", startScanner);
-
-});
+let codeReader;
+let selectedDeviceId;
 
 async function startScanner(){
 
-if(typeof Html5Qrcode === "undefined"){
-
-alert("Errore: libreria scanner non caricata");
-
-return;
-
-}
-
 try{
 
-const cameras = await Html5Qrcode.getCameras();
+codeReader = new ZXing.BrowserMultiFormatReader();
 
-if(!cameras.length){
+const devices = await codeReader.listVideoInputDevices();
+
+if(!devices.length){
 
 alert("Nessuna fotocamera trovata");
 
@@ -83,36 +74,44 @@ return;
 
 }
 
-scanner = new Html5Qrcode("reader");
+selectedDeviceId = devices[0].deviceId;
 
-scanner.start(
+codeReader.decodeFromVideoDevice(
 
-cameras[0].id,
+selectedDeviceId,
 
-{
-fps:10,
-qrbox:200
-},
+'video',
 
-(decodedText)=>{
+(result, err)=>{
 
-document.getElementById("product").value = decodedText;
+if(result){
 
-scanner.stop();
+document.getElementById("product").value = result.text;
 
 navigator.vibrate?.(100);
 
-},
+stopScanner();
 
-(err)=>{}
+}
+
+}
 
 );
 
 }
-
 catch(e){
 
 alert("Errore fotocamera: " + e);
+
+}
+
+}
+
+function stopScanner(){
+
+if(codeReader){
+
+codeReader.reset();
 
 }
 
