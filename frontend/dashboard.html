@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Warehouse Inventory - Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard</h1>
+        <button id="logoutBtn">Logout</button>
+        <hr>
+        <a href="scanner.html">📷 Scansiona Codice a Barre</a>
+        <h2>Ultimi Movimenti</h2>
+        <table id="movementsTable">
+            <thead>
+                <tr>
+                    <th>Prodotto</th>
+                    <th>Utente</th>
+                    <th>Tipo</th>
+                    <th>Quantità</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            const tableBody = document.querySelector("#movementsTable tbody");
+            const movements = await apiGet("movements.php");
+            if(movements && movements.length){
+                movements.forEach(m => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${m.product_name}</td>
+                        <td>${m.user_name}</td>
+                        <td>${m.type}</td>
+                        <td>${m.quantity}</td>
+                        <td>${m.created_at}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+        });
+
+        document.getElementById("logoutBtn").addEventListener("click", async () => {
+            await apiPost("logout.php", {});
+            window.location.href = "login.html";
+        });
+    </script>
+</body>
+</html>
