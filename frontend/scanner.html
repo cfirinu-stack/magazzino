@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Warehouse Inventory - Scanner</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Scanner Codice a Barre</h1>
+        <div id="reader" style="width:500px;"></div>
+        <div id="productForm" style="display:none;">
+            <h2 id="productTitle"></h2>
+            <p>Stock attuale: <span id="currentStock"></span></p>
+
+            <label>Quantità:</label>
+            <input type="number" id="quantity" min="1" value="1">
+
+            <label>Tipo:</label>
+            <select id="movementType">
+                <option value="IN">Entrata</option>
+                <option value="OUT">Uscita</option>
+            </select>
+
+            <div id="newProductFields" style="display:none;">
+                <label>Nome Prodotto:</label>
+                <input type="text" id="name">
+                <label>Descrizione:</label>
+                <input type="text" id="description">
+                <label>Scaffale:</label>
+                <input type="text" id="shelf">
+            </div>
+
+            <button id="saveBtn">Salva Movimento</button>
+            <div id="message"></div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/scanner.js"></script>
+</body>
+</html>
