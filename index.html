@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Warehouse Inventory PRO</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.9/minified/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 body{font-family:Arial;text-align:center;background:#f4f4f4;}
 h1{background:#222;color:white;padding:10px;}
@@ -27,16 +28,18 @@ th,td{border:1px solid #ccc;padding:6px;text-align:center;}
 </select><br>
 
 <button id="startBtn">📷 Avvia Scanner</button>
-<button onclick="stopScanner()">⛔ Stop</button>
-
+<button id="stopBtn">⛔ Stop</button>
 <div id="reader"></div><br>
 
 <input id="scaffold" placeholder="Scaffale">
 <input id="product" placeholder="Codice prodotto">
 <input id="productName" placeholder="Nome prodotto">
 <input id="qty" type="number" value="1"><br>
-
 <button onclick="saveMove()">💾 Salva Movimento</button>
+
+<br><br>
+<input type="file" id="fileInput" accept=".xlsx,.csv">
+<button onclick="importExcel()">📁 Importa Prodotti</button>
 
 <h2>📊 Registro Movimenti</h2>
 <table id="table">
@@ -44,97 +47,121 @@ th,td{border:1px solid #ccc;padding:6px;text-align:center;}
 </table>
 
 <script>
-let scanner;
+let html5QrcodeScanner;
 
-// Scanner
-document.getElementById("startBtn").addEventListener("click", ()=>{
-  scanner = new Html5QrcodeScanner(
-    "reader",
-    { fps: 10, qrbox: 200 },
-    false
-  );
-  scanner.render((decodedText)=>{
-    document.getElementById("product").value = decodedText;
-
-    // Se esiste il prodotto nel DB, mostra il nome
-    let tx = db.transaction("prodotti","readonly");
-    let store = tx.objectStore("prodotti");
-    let req = store.get(decodedText);
-    req.onsuccess = function(){
-      if(req.result) document.getElementById("productName").value = req.result.name || "";
-    }
-
-    navigator.vibrate(100);
-  });
+// Avvia scanner
+document.getElementById("startBtn").addEventListener("click", async ()=>{
+    try{
+        const cameras = await Html5Qrcode.getCameras();
+        if(cameras && cameras.length){
+            const cameraId = cameras[0].id;
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            html5QrcodeScanner.start(
+                cameraId,
+                { fps:10, qrbox:200 },
+                (decodedText)=>{
+                    document.getElementById("product").value = decodedText;
+                    let tx = db.transaction("prodotti","readonly");
+                    let store = tx.objectStore("prodotti");
+                    let req = store.get(decodedText);
+                    req.onsuccess = function(){
+                        if(req.result) document.getElementById("productName").value = req.result.name || "";
+                    }
+                    navigator.vibrate(100);
+                },
+                (err)=>{ /* ignorare piccoli errori */ }
+            );
+        } else alert("Nessuna fotocamera trovata.");
+    }catch(err){ alert("Errore fotocamera: "+err); }
 });
 
-function stopScanner(){
-  if(scanner){ scanner.clear(); }
-}
+// Ferma scanner
+document.getElementById("stopBtn").addEventListener("click", ()=>{
+    if(html5QrcodeScanner){ html5QrcodeScanner.stop().then(()=>console.log("Scanner fermato")).catch(err=>console.log(err)); }
+});
 
 // IndexedDB
 let db;
 let request=indexedDB.open("warehouseDB",1);
 request.onupgradeneeded=e=>{
-  db=e.target.result;
-  db.createObjectStore("prodotti",{keyPath:"codice"});
-  db.createObjectStore("log",{keyPath:"id",autoIncrement:true});
+    db=e.target.result;
+    db.createObjectStore("prodotti",{keyPath:"codice"});
+    db.createObjectStore("log",{keyPath:"id",autoIncrement:true});
 };
 request.onsuccess=e=>{ db=e.target.result; updateTable(); }
 
 // Salva movimento
 function saveMove(){
-  let codice=document.getElementById("product").value.trim();
-  let nome=document.getElementById("productName").value.trim();
-  let qty=parseInt(document.getElementById("qty").value);
-  let scaffale=document.getElementById("scaffold").value.trim();
-  let mode=document.getElementById("mode").value;
-  let user=document.getElementById("user").value;
-  if(!codice || !user){alert("Inserisci codice e operatore"); return;}
-  let timestamp=new Date().toLocaleString();
-  let tx=db.transaction(["prodotti","log"],"readwrite");
-  let store=tx.objectStore("prodotti");
-  let log=tx.objectStore("log");
-  let req=store.get(codice);
-  req.onsuccess=function(){
-    let data=req.result || {codice:codice,stock:0};
-    data.scaffale=scaffale;
-    data.name = nome; // salva il nome prodotto
-    if(mode=="entrata") data.stock+=qty;
-    else if(mode=="uscita") data.stock=Math.max(0,data.stock-qty);
-    else if(mode=="inventario") data.stock=qty;
-    store.put(data);
-
-    // Alert stock
-    if(data.stock<10){alert("🚨 STOCK CRITICO (<10)");}
-    else if(data.stock<15){alert("⚠️ STOCK BASSO (<15)");}
-
-    log.add({timestamp,user,codice,nome:data.name,scaffale,qty,tipo:mode,stock:data.stock});
-    updateTable();
-  }
+    let codice=document.getElementById("product").value.trim();
+    let nome=document.getElementById("productName").value.trim();
+    let qty=parseInt(document.getElementById("qty").value);
+    let scaffale=document.getElementById("scaffold").value.trim();
+    let mode=document.getElementById("mode").value;
+    let user=document.getElementById("user").value;
+    if(!codice || !user){alert("Inserisci codice e operatore"); return;}
+    let timestamp=new Date().toLocaleString();
+    let tx=db.transaction(["prodotti","log"],"readwrite");
+    let store=tx.objectStore("prodotti");
+    let log=tx.objectStore("log");
+    let req=store.get(codice);
+    req.onsuccess=function(){
+        let data=req.result || {codice:codice,stock:0};
+        data.scaffale=scaffale;
+        data.name = nome;
+        if(mode=="entrata") data.stock+=qty;
+        else if(mode=="uscita") data.stock=Math.max(0,data.stock-qty);
+        else if(mode=="inventario") data.stock=qty;
+        store.put(data);
+        if(data.stock<10){alert("🚨 STOCK CRITICO (<10)");}
+        else if(data.stock<15){alert("⚠️ STOCK BASSO (<15)");}
+        log.add({timestamp,user,codice,nome:data.name,scaffale,qty,tipo:mode,stock:data.stock});
+        updateTable();
+    }
 }
 
 // Aggiorna tabella
 function updateTable(){
-  let tx=db.transaction("log","readonly");
-  let store=tx.objectStore("log");
-  let table=document.getElementById("table");
-  table.innerHTML=`<tr><th>Data</th><th>Operatore</th><th>Codice</th><th>Nome Prodotto</th><th>Scaffale</th><th>Qty</th><th>Tipo</th><th>Stock</th></tr>`;
-  store.getAll().onsuccess=e=>{
-    e.target.result.reverse().forEach(r=>{
-      let tr=table.insertRow();
-      if(r.stock<10) tr.className="critical";
-      else if(r.stock<15) tr.className="low";
-      tr.insertCell(0).innerText=r.timestamp;
-      tr.insertCell(1).innerText=r.user;
-      tr.insertCell(2).innerText=r.codice;
-      tr.insertCell(3).innerText=r.nome || "";
-      tr.insertCell(4).innerText=r.scaffale;
-      tr.insertCell(5).innerText=r.qty;
-      tr.insertCell(6).innerText=r.tipo;
-      tr.insertCell(7).innerText=r.stock;
-    });
-  }
+    let tx=db.transaction("log","readonly");
+    let store=tx.objectStore("log");
+    let table=document.getElementById("table");
+    table.innerHTML=`<tr><th>Data</th><th>Operatore</th><th>Codice</th><th>Nome Prodotto</th><th>Scaffale</th><th>Qty</th><th>Tipo</th><th>Stock</th></tr>`;
+    store.getAll().onsuccess=e=>{
+        e.target.result.reverse().forEach(r=>{
+            let tr=table.insertRow();
+            if(r.stock<10) tr.className="critical";
+            else if(r.stock<15) tr.className="low";
+            tr.insertCell(0).innerText=r.timestamp;
+            tr.insertCell(1).innerText=r.user;
+            tr.insertCell(2).innerText=r.codice;
+            tr.insertCell(3).innerText=r.nome || "";
+            tr.insertCell(4).innerText=r.scaffale;
+            tr.insertCell(5).innerText=r.qty;
+            tr.insertCell(6).innerText=r.tipo;
+            tr.insertCell(7).innerText=r.stock;
+        });
+    }
+}
+
+// Import Excel
+function importExcel(){
+    let file = document.getElementById("fileInput").files[0];
+    if(!file){alert("Seleziona un file"); return;}
+    let reader = new FileReader();
+    reader.onload = function(e){
+        let data = new Uint8Array(e.target.result);
+        let workbook = XLSX.read(data,{type:"array"});
+        let sheet = workbook.Sheets[workbook.SheetNames[0]];
+        let json = XLSX.utils.sheet_to_json(sheet);
+        let tx=db.transaction("prodotti","readwrite");
+        let store=tx.objectStore("prodotti");
+        json.forEach(item=>{
+            if(item.Codice){
+                store.put({codice:item.Codice, name:item.Nome || "", stock:item.Stock || 0});
+            }
+        });
+        tx.oncomplete = ()=>{alert("Prodotti importati!"); updateTable();}
+    }
+    reader.readAsArrayBuffer(file);
 }
 </script>
 </body>
