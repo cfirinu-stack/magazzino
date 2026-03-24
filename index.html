@@ -27,8 +27,7 @@ th,td{border:1px solid #ccc;padding:6px;text-align:center;}
 <option value="inventario">Inventario</option>
 </select><br>
 
-<button id="startBtn">📷 Avvia Scanner</button>
-<button id="stopBtn">⛔ Stop</button>
+<button id="startBtn">📷 Scansiona Prodotto</button>
 <div id="reader"></div><br>
 
 <input id="scaffold" placeholder="Scaffale">
@@ -49,7 +48,7 @@ th,td{border:1px solid #ccc;padding:6px;text-align:center;}
 <script>
 let html5QrcodeScanner;
 
-// Avvia scanner
+// Scanner singolo clic
 document.getElementById("startBtn").addEventListener("click", async ()=>{
     try{
         const cameras = await Html5Qrcode.getCameras();
@@ -67,17 +66,13 @@ document.getElementById("startBtn").addEventListener("click", async ()=>{
                     req.onsuccess = function(){
                         if(req.result) document.getElementById("productName").value = req.result.name || "";
                     }
+                    html5QrcodeScanner.stop(); // Ferma scanner subito dopo la scansione
                     navigator.vibrate(100);
                 },
                 (err)=>{ /* ignorare piccoli errori */ }
             );
         } else alert("Nessuna fotocamera trovata.");
     }catch(err){ alert("Errore fotocamera: "+err); }
-});
-
-// Ferma scanner
-document.getElementById("stopBtn").addEventListener("click", ()=>{
-    if(html5QrcodeScanner){ html5QrcodeScanner.stop().then(()=>console.log("Scanner fermato")).catch(err=>console.log(err)); }
 });
 
 // IndexedDB
