@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <title>Warehouse Inventory</title>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.9/html5-qrcode.min.js"></script>
+<!-- Libreria scanner stabile -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
 <style>
+
 body{
 font-family:Arial;
 text-align:center;
@@ -50,6 +52,7 @@ background:#ffe0b2;
 .critical{
 background:#ffb3b3;
 }
+
 </style>
 </head>
 
@@ -109,39 +112,42 @@ background:#ffb3b3;
 let scanner;
 let db;
 
-/* ---------------- DATABASE ---------------- */
+/* DATABASE */
 
 let request = indexedDB.open("warehouseDB",1);
 
 request.onupgradeneeded = e=>{
+
 db = e.target.result;
 
 db.createObjectStore("prodotti",{keyPath:"codice"});
 
 db.createObjectStore("movimenti",{keyPath:"id",autoIncrement:true});
+
 };
 
 request.onsuccess = e=>{
+
 db = e.target.result;
+
 updateTable();
+
 };
 
-/* ---------------- SCANNER ---------------- */
+/* SCANNER */
 
 async function startScanner(){
-
-if(!window.Html5Qrcode){
-alert("Libreria scanner non caricata");
-return;
-}
 
 try{
 
 const cameras = await Html5Qrcode.getCameras();
 
-if(cameras.length === 0){
+if(!cameras.length){
+
 alert("Nessuna fotocamera trovata");
+
 return;
+
 }
 
 const cameraId = cameras[0].id;
@@ -166,18 +172,19 @@ scanner.stop();
 
 },
 (err)=>{}
+
 );
 
 }
 catch(e){
 
-alert("Errore fotocamera: "+e);
+alert("Errore fotocamera: " + e);
 
 }
 
 }
 
-/* ---------------- CARICA NOME PRODOTTO ---------------- */
+/* CARICA NOME PRODOTTO */
 
 function loadProductName(code){
 
@@ -199,7 +206,7 @@ document.getElementById("productName").value = req.result.nome || "";
 
 }
 
-/* ---------------- SALVA MOVIMENTO ---------------- */
+/* SALVA MOVIMENTO */
 
 function saveMove(){
 
@@ -245,7 +252,7 @@ if(mode=="inventario") data.stock = qty;
 
 store.put(data);
 
-/* alert stock */
+/* ALERT STOCK */
 
 if(data.stock < 10){
 
@@ -285,7 +292,7 @@ updateTable();
 
 }
 
-/* ---------------- TABELLA ---------------- */
+/* AGGIORNA TABELLA */
 
 function updateTable(){
 
